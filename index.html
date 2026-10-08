@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="ru" class="h-full bg-slate-950">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>«Искра» — Генератор ЭМУ НеФАЗ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gifshot/0.3.2/gifshot.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            950: '#060709',
+                            900: '#0b0d12',
+                            800: '#131722',
+                            700: '#1d2334',
+                            600: '#2b344d',
+                            400: '#64748b'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
+        body { font-family: 'JetBrains Mono', monospace; }
+        canvas { image-rendering: pixelated; }
+    </style>
+</head>
+<body class="min-h-full bg-dark-950 text-slate-200 flex flex-col items-center justify-center p-3 sm:p-6 md:p-8">
+
+    <div class="w-full max-w-[960px] flex flex-col gap-5">
+
+        <!-- HEADER TITLE -->
+        <div class="flex items-center justify-between border-b border-dark-700 pb-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-bold text-xl font-mono shadow-lg shadow-amber-500/5">
+                    И
+                </div>
+                <div>
+                    <h1 class="text-slate-100 font-bold text-lg sm:text-xl leading-tight font-mono tracking-wide uppercase">«Искра»</h1>
+                    <p class="text-xs text-dark-400">Генератор ЭМУ автобуса НеФАЗ</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="btn-export-gif" class="px-3.5 py-2 rounded-lg bg-dark-700 hover:bg-dark-600 text-amber-400 font-semibold text-xs transition flex items-center gap-1.5 border border-dark-600 active:scale-95">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    <span>GIF</span>
+                </button>
+                <button id="btn-export-png" class="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition flex items-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Сохранить PNG
+                </button>
+            </div>
+        </div>
+
+        <!-- LED DISPLAY FRAME CONTAINER -->
+        <div class="relative bg-dark-900 border-2 border-dark-700 rounded-2xl p-4 sm:p-6 shadow-2xl flex flex-col items-center justify-center overflow-hidden">
+            <div class="w-full overflow-x-auto flex justify-center py-2">
+                <canvas id="emu-canvas" class="rounded-lg shadow-2xl max-w-full bg-[#050608] border border-dark-700"></canvas>
+            </div>
+            
+            <div class="w-full flex justify-between items-center mt-3 text-[11px] text-dark-400 px-1 font-mono">
+                <span>Электронное табло «Искра» (144×24 LED)</span>
+                <span id="scroll-status" class="text-amber-500/80">Статус: Центрировано</span>
+            </div>
+        </div>
+
+        <!-- CONTROLS DASHBOARD -->
+        <div class="bg-dark-800 border border-dark-700 rounded-2xl p-5 sm:p-6 flex flex-col gap-5 shadow-xl">
+            
+            <!-- TEXT CONFIGURATION -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-xs font-semibold text-dark-400 uppercase tracking-wider">Маршрут</label>
+                    <input type="text" id="inp-route" value="71а" maxlength="8" class="bg-dark-950 border border-dark-700 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-sm focus:outline-none focus:border-amber-500 transition">
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-xs font-semibold text-dark-400 uppercase tracking-wider">Конечная А</label>
+                    <input type="text" id="inp-origin" value="Спортзал" class="bg-dark-950 border border-dark-700 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-sm focus:outline-none focus:border-amber-500 transition">
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-xs font-semibold text-dark-400 uppercase tracking-wider">Конечная Б</label>
+                    <input type="text" id="inp-destination" value="пос. Таймыр" class="bg-dark-950 border border-dark-700 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono text-sm focus:outline-none focus:border-amber-500 transition">
+                </div>
+            </div>
+
+            <!-- DISPLAY OPTIONS -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 border-t border-dark-700 pt-4">
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-xs font-semibold text-dark-400 uppercase tracking-wider">Цвет диодов</label>
+                    <select id="sel-color" class="bg-dark-950 border border-dark-700 rounded-xl px-3 py-2 text-slate-100 text-xs font-mono focus:outline-none focus:border-amber-500">
+                        <option value="amber" selected>Янтарный (Classic Amber)</option>
+                        <option value="green">Изумрудный (Green)</option>
+                        <option value="white">Холодный белый (White)</option>
+                        <option value="blue">Лазурный (Blue)</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-xs font-semibold text-dark-400 uppercase tracking-wider">Режим отображения</label>
+                    <select id="sel-mode" class="bg-dark-950 border border-dark-700 rounded-xl px-3 py-2 text-slate-100 text-xs font-mono focus:outline-none focus:border-amber-500">
+                        <option value="dual" selected>2 строки (Конечные А / Б)</option>
+                        <option value="single_a">1 строка (Только Конечная А)</option>
+                        <option value="single_b">1 строка (Только Конечная Б)</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-xs font-semibold text-dark-400 uppercase tracking-wider">Скорость Пинг-понга</label>
+                    <input type="range" id="rng-speed" min="0.2" max="2.0" step="0.1" value="0.8" class="mt-2 accent-amber-500">
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-xs font-semibold text-dark-400 uppercase tracking-wider">Свечение диодов (Glow)</label>
+                    <input type="range" id="rng-glow" min="0" max="100" value="70" class="mt-2 accent-amber-500">
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const CANVAS_WIDTH = 144;
+        const CANVAS_HEIGHT = 24;
+        const PIXEL_SCALE = 5;
+
+        const canvas = document.getElementById('emu-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = CANVAS_WIDTH * PIXEL_SCALE;
+        canvas.height = CANVAS_HEIGHT * PIXEL_SCALE;
+
+        const grid = Array.from({ length: CANVAS_HEIGHT }, () => new Array(CANVAS_WIDTH).fill(0));
+
+        const state = {
+            route: '71а',
+            origin: 'Спортзал',
+            destination: 'пос. Таймыр',
+            color: 'amber',
+            mode: 'dual',
+            speed: 0.8,
+            glow: 70
+        };
+
+        const scrollState = {
+            line1Offset: 0,
+            line1Dir: -1,
+            line1Pause: 30,
+            line2Offset: 0,
+            line2Dir: -1,
+            line2Pause: 30
+        };
+
+        const LED_PALETTES = {
+            amber: { active: '#ffb000', dim: '#11141c' },
+            green: { active: '#10b981', dim: '#11141c' },
+            white: { active: '#f8fafc', dim: '#11141c' },
+            blue: { active: '#38bdf8', dim: '#11141c' }
+        };
+
+        // Utility to convert row-based grid strings to column-wise matrices
+        function parseGridFont(fontMap) {
+            const result = {};
+            for (let char in fontMap) {
+                const rows = fontMap[char];
+                const numRows = rows.length;
+                const numCols = rows[0].length;
+                const matrix = [];
+                for (let col = 0; col < numCols; col++) {
+                    const columnArr = new Array(numRows);
+                    for (let row = 0; row < numRows; row++) {
+                        columnArr[row] = rows[row][col] === '1' ? 1 : 0;
+                    }
+                    matrix.push(columnArr);
+                }
+                result[char] = matrix;
+            }
+            return result;
+        }
+
+        // 16-Pixel High Route Matrix Font (Digits, Cyrillic, Latin & Symbols)
+        const ROUTE_GRID_16 = parseGridFont({
+            '0': [
+                "00111100",
+                "01111110",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "01111110",
+                "00111100"
+            ],
+            '1': [
+                "00011000",
+                "00111000",
+                "01111000",
+                "11011000",
+                "00011000",
+                "00011000",
+                "00011000",
+                "00011000",
+                "00011000",
+                "00011000",
+                "00011000",
+                "00011000",
+                "00011000",
+                "00011000",
+                "11111111",
+                "11111111"
+            ],
+            '2': [
+                "01111110",
+                "11111111",
+                "11000011",
+                "00000011",
+                "00000011",
+                "00000110",
+                "00001100",
+                "00011000",
+                "00110000",
+                "01100000",
+                "11000000",
+                "11000000",
+                "11000011",
+                "11111111",
+                "11111111",
+                "11111111"
+            ],
+            '3': [
+                "01111110",
+                "11111111",
+                "11000011",
+                "00000011",
+                "00000011",
+                "00000110",
+                "00011110",
+                "00011110",
+                "00000110",
+                "00000011",
+                "00000011",
+                "00000011",
+                "11000011",
+                "11111111",
+                "01111110",
+                "00111100"
+            ],
+            '4': [
+                "00001100",
+                "00011100",
+                "00111100",
+                "01101100",
+                "11001100",
+                "11001100",
+                "11001100",
+                "11111111",
+                "11111111",
+                "00001100",
+                "00001100",
+                "00001100",
+                "00001100",
+                "00001100",
+                "00001100",
+                "00001100"
+            ],
+            '5': [
+                "11111111",
+                "11111111",
+                "11000000",
+                "11000000",
+                "11000000",
+                "11111110",
+                "11111111",
+                "00000011",
+                "00000011",
+                "00000011",
+                "00000011",
+                "11000011",
+                "11000011",
+                "11111111",
+                "01111110",
+                "00111100"
+            ],
+            '6': [
+                "00111110",
+                "01111110",
+                "11000000",
+                "11000000",
+                "11000000",
+                "11111110",
+                "11111111",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11111111",
+                "01111110",
+                "00111100"
+            ],
+            '7': [
+                "11111111",
+                "11111111",
+                "11000011",
+                "00000011",
+                "00000110",
+                "00000110",
+                "00001100",
+                "00001100",
+                "00011000",
+                "00011000",
+                "00110000",
+                "00110000",
+                "01100000",
+                "01100000",
+                "11000000",
+                "11000000"
+            ],
+            '8': [
+                "00111100",
+                "01111110",
+                "11000011",
+                "11000011",
+                "11000011",
+                "01111110",
+                "01111110",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11111111",
+                "01111110",
+                "00111100"
+            ],
+            '9': [
+                "00111100",
+                "01111110",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11111111",
+                "01111111",
+                "00000011",
+                "00000011",
+                "00000011",
+                "00000011",
+                "01100011",
+                "01111110",
+                "00111100"
+            ],
+            '/': [
+                "00000011",
+                "00000110",
+                "00000110",
+                "00001100",
+                "00001100",
+                "00011000",
+                "00011000",
+                "00110000",
+                "00110000",
+                "01100000",
+                "01100000",
+                "11000000",
+                "11000000",
+                "10000000",
+                "00000000",
+                "00000000"
+            ],
+            '-': [
+                "00000000",
+                "00000000",
+                "00000000",
+                "00000000",
+                "00000000",
+                "00000000",
+                "11111111",
+                "11111111",
+                "11111111",
+                "00000000",
+                "00000000",
+                "00000000",
+                "00000000",
+                "00000000",
+                "00000000",
+                "00000000"
+            ],
+            'А': [
+                "00011000",
+                "00111100",
+                "01100110",
+                "01100110",
+                "11000011",
+                "11000011",
+                "11111111",
+                "11111111",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011"
+            ],
+            'Б': [
+                "11111111",
+                "11111111",
+                "11000000",
+                "11000000",
+                "11000000",
+                "11111110",
+                "11111111",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11111111",
+                "11111110",
+                "01111100"
+            ],
+            'В': [
+                "11111110",
+                "11111111",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11111110",
+                "11111110",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11111111",
+                "11111110",
+                "01111100"
+            ],
+            'К': [
+                "11000011",
+                "11000110",
+                "11001100",
+                "11011000",
+                "11110000",
+                "11111000",
+                "11011100",
+                "11001100",
+                "11000110",
+                "11000110",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011",
+                "11000011"
+            ],
+            'М': [
+                "1100000011",
+                "1110000111",
+                "1111001111",
+                "1101111011",
+                "1100110011",
+                "1100000011",
+                "1100000011",
+                "1100000011",
+                "1100000011",
+                "1100000011",
+                "1100000011",
+                "1100000011",
+                "1100000011",
+                "1100000011",
+                "1100000011",
+                "1100000011"
+            ],
+            'С': [
+                "00111110",
+                "01111110",
+                "11000011",
+                "11000000",
+                "11000000",
+                "11000000",
+                "11000000",
+                "11000000",
+                "11000000",
+                "11000000",
+                "11000000",
+                "11000000",
+                "11000011",
+                "01111110",
+                "00111100",
+                "00000000"
+            ],
+            'Ц': [
+                "1100001100",
+                "1100001100",
+                "1100001100",
+                "1100001100",
+                "1100001100",
+                "1100001100",
+                "1100001100",
+                "1100001100",
+                "1100001100",
+                "1100001100",
+                "1100001100",
+                "1100001100",
+                "1100001100",
+                "1111111100",
+                "0000001111",
+                "0000001111"
+            ],
+            'Щ': [
+                "11001100110",
+                "11001100110",
+                "11001100110",
+                "11001100110",
+                "11001100110",
+                "11001100110",
+                "11001100110",
+                "11001100110",
+                "11001100110",
+                "11001100110",
+                "11001100110",
+                "11001100110",
+                "11001100110",
+                "11111111110",
+                "00000000111",
+                "00000000111"
+            ]
+        });
+
+        // 7-Pixel High Destination Font (Cyrillic & ASCII)
+        const CYRILLIC_GRID_8 = parseGridFont({
+            'А': ["0011100","0110110","1100011","1100011","1111111","1100011","1100011"],
+            'Б': ["1111111","1100000","1111110","1100011","1100011","1100011","1111110"],
+            'В': ["1111110","1100011","1111110","1111110","1100011","1100011","1111110"],
+            'Г': ["1111111","1100000","1100000","1100000","1100000","1100000","1100000"],
+            'Д': ["0011100","0110110","0110110","0110110","0111110","1100011","1100011"],
+            'Е': ["1111111","1100000","1111100","1111100","1100000","1100000","1111111"],
+            'Ё': ["0100010","1111111","1100000","1111100","1100000","1100000","1111111"],
+            'Ж': ["1101011","0111110","0011100","0011100","0011100","0111110","1101011"],
+            'З': ["0111110","1100011","0000110","0011100","0000011","1100011","0111110"],
+            'И': ["1100011","1100111","1101111","1111011","1110011","1100011","1100011"],
+            'Й': ["0011100","1100011","1100111","1101111","1111011","1110011","1100011"],
+            'К': ["1100011","1100110","1101100","1111000","1101100","1100110","1100011"],
+            'Л': ["0001111","0011011","0110011","0110011","1100011","1100011","1100011"],
+            'М': ["1100011","1110111","1111111","1101011","1100011","1100011","1100011"],
+            'Н': ["1100011","1100011","1111111","1111111","1100011","1100011","1100011"],
+            'О': ["0111110","1100011","1100011","1100011","1100011","1100011","0111110"],
+            'П': ["1111111","1100011","1100011","1100011","1100011","1100011","1100011"],
+            'Р': ["1111110","1100011","1100011","1111110","1100000","1100000","1100000"],
+            'С': ["0111110","1100011","1100000","1100000","1100000","1100011","0111110"],
+            'Т': ["1111111","0011100","0011100","0011100","0011100","0011100","0011100"],
+            'У': ["1100011","1100011","1100011","0111111","0000011","0000110","0111100"],
+            'Ф': ["0011100","0111110","1101011","1101011","0111110","0011100","0011100"],
+            'Х': ["1100011","0110110","0011100","0011100","0011100","0110110","1100011"],
+            'Ц': ["1100110","1100110","1100110","1100110","1100110","1111110","0000111"],
+            'Ч': ["1100011","1100011","1100011","0111111","0000011","0000011","0000011"],
+            'Ш': ["1101101","1101101","1101101","1101101","1101101","1111111","1111111"],
+            'Щ': ["1101010","1101010","1101010","1101010","1101010","1111110","0000111"],
+            'Ъ': ["1100000","1100000","1111110","1100011","1100011","1100011","1111110"],
+            'Ы': ["1100011","1100011","1111011","1101011","1101011","1101011","1111011"],
+            'Ь': ["1100000","1100000","1111110","1100011","1100011","1100011","1111110"],
+            'Э': ["0111110","1100011","0000011","0011111","0000011","1100011","0111110"],
+            'Ю': ["1100110","1101101","1111101","1101101","1101101","1101101","1100110"],
+            'Я': ["0111110","1100011","1100011","0111110","0110011","1100011","1100011"],
+
+            'а': ["0000000","0000000","0111110","0000011","0111111","1100011","0111111"],
+            'б': ["1100000","1100000","1111110","1100011","1100011","1100011","1111110"],
+            'в': ["0000000","0000000","1111110","1100011","1111110","1100011","1111110"],
+            'г': ["0000000","0000000","1111111","1100000","1100000","1100000","1100000"],
+            'д': ["0000000","0111110","0100010","0100010","0111110","1100011","1100011"],
+            'е': ["0000000","0000000","0111110","1100011","1111111","1100000","0111110"],
+            'ё': ["0100010","0000000","0111110","1100011","1111111","1100000","0111110"],
+            'ж': ["0000000","0000000","1101011","0111110","0011100","0111110","1101011"],
+            'з': ["0000000","0000000","0111110","0000011","0011110","0000011","0111110"],
+            'и': ["0000000","0000000","1100011","1100111","1101111","1111011","1100011"],
+            'й': ["0011100","0000000","1100011","1100111","1101111","1111011","1100011"],
+            'к': ["0000000","0000000","1100011","1100110","1111100","1100110","1100011"],
+            'л': ["0000000","0000000","0001111","0011011","0110011","1100011","1100011"],
+            'м': ["0000000","0000000","1100011","1110111","1111111","1101011","1100011"],
+            'н': ["0000000","0000000","1100011","1100011","1111111","1100011","1100011"],
+            'о': ["0000000","0000000","0111110","1100011","1100011","1100011","0111110"],
+            'п': ["0000000","0000000","1111111","1100011","1100011","1100011","1100011"],
+            'р': ["0000000","0000000","1111110","1100011","1111110","1100000","1100000"],
+            'с': ["0000000","0000000","0111110","1100011","1100000","1100011","0111110"],
+            'т': ["0000000","0000000","1111111","0011100","0011100","0011100","0011100"],
+            'у': ["0000000","0000000","1100011","1100011","0111111","0000011","0111100"],
+            'ф': ["0000000","0000000","0011100","0111110","1101011","0111110","0011100"],
+            'х': ["0000000","0000000","1100011","0110110","0011100","0110110","1100011"],
+            'ц': ["0000000","0000000","1100110","1100110","1100110","1111110","0000111"],
+            'ч': ["0000000","0000000","1100011","1100011","0111111","0000011","0000011"],
+            'ш': ["0000000","0000000","1101101","1101101","1101101","1111111","1111111"],
+            'щ': ["0000000","0000000","1101010","1101010","1101010","1111110","0000111"],
+            'ы': ["0000000","0000000","1100011","1100011","1111011","1101011","1111011"],
+            'ь': ["0000000","0000000","1100000","1100000","1111110","1100011","1111110"],
+            'э': ["0000000","0000000","0111110","0000011","0011111","0000011","0111110"],
+            'ю': ["0000000","0000000","1100110","1101101","1111101","1101101","1100110"],
+            'я': ["0000000","0000000","0111110","1100011","0111110","0110011","1100011"],
+
+            '0': ["0111110","1100011","1100011","1100011","1100011","1100011","0111110"],
+            '1': ["0011100","0111100","0011100","0011100","0011100","0011100","1111111"],
+            '2': ["0111110","1100011","0000011","0011110","0110000","1100000","1111111"],
+            '3': ["0111110","1100011","0000011","0011110","0000011","1100011","0111110"],
+            '4': ["0000110","0001110","0011110","0110110","1111111","0000110","0000110"],
+            '5': ["1111111","1100000","1111110","0000011","0000011","1100011","0111110"],
+            '6': ["0111110","1100000","1111110","1100011","1100011","1100011","0111110"],
+            '7': ["1111111","0000011","0000110","0001100","0011000","0110000","1100000"],
+            '8': ["0111110","1100011","1100011","0111110","1100011","1100011","0111110"],
+            '9': ["0111110","1100011","1100011","0111111","0000011","0000011","0111110"],
+
+            ' ': ["0000000","0000000","0000000","0000000","0000000","0000000","0000000"],
+            '.': ["0000000","0000000","0000000","0000000","0000000","0110000","0110000"],
+            ',': ["0000000","0000000","0000000","0000000","0110000","0010000","0100000"],
+            '-': ["0000000","0000000","0000000","1111100","0000000","0000000","0000000"],
+            '/': ["0000011","0000110","0001100","0011000","0110000","1100000","1000000"]
+        });
+
+        function getRouteCharMatrix(char) {
+            if (ROUTE_GRID_16[char]) return ROUTE_GRID_16[char];
+            if (ROUTE_GRID_16[char.toUpperCase()]) return ROUTE_GRID_16[char.toUpperCase()];
+            if (ROUTE_GRID_16[char.toLowerCase()]) return ROUTE_GRID_16[char.toLowerCase()];
+
+            // High-resolution double-stroke fallback generator for missing letters
+            const base = CYRILLIC_GRID_8[char] || CYRILLIC_GRID_8[char.toUpperCase()] || CYRILLIC_GRID_8['0'];
+            const scaled = [];
+
+            for (let c = 0; c < base.length; c++) {
+                const col16 = new Array(16).fill(0);
+                for (let r = 0; r < 7; r++) {
+                    if (base[c][r] === 1) {
+                        col16[r * 2 + 1] = 1;
+                        col16[r * 2 + 2] = 1;
+                    }
+                }
+                scaled.push(col16);
+                scaled.push([...col16]); // Bold stroke doubling
+            }
+            return scaled;
+        }
+
+        function getRoutePixelWidth(routeStr) {
+            let width = 0;
+            for (let char of routeStr) {
+                const glyph = getRouteCharMatrix(char);
+                width += glyph.length + 1;
+            }
+            return Math.max(width + 3, 26);
+        }
+
+        function measureTextWidth(textStr) {
+            let width = 0;
+            for (let char of textStr) {
+                const glyph = CYRILLIC_GRID_8[char] || CYRILLIC_GRID_8[' '];
+                width += glyph.length + 1;
+            }
+            return Math.max(0, width - 1);
+        }
+
+        function setPixel(x, y, val = 1) {
+            if (x >= 0 && x < CANVAS_WIDTH && y >= 0 && y < CANVAS_HEIGHT) {
+                grid[y][x] = val;
+            }
+        }
+
+        function clearGrid() {
+            for (let r = 0; r < CANVAS_HEIGHT; r++) {
+                grid[r].fill(0);
+            }
+        }
+
+        function renderRouteBlock(routeStr) {
+            let currentX = 4; // Сдвинуто чуть правее (было 2)
+
+            for (let char of routeStr) {
+                const glyph = getRouteCharMatrix(char);
+                for (let col = 0; col < glyph.length; col++) {
+                    for (let row = 0; row < glyph[col].length; row++) {
+                        if (glyph[col][row] === 1) {
+                            setPixel(currentX + col, 4 + row);
+                        }
+                    }
+                }
+                currentX += glyph.length + 1;
+            }
+
+            // Разделительная линия убрана, возвращаем позицию для начала текста конечной
+            return currentX + 2;
+        }
+
+        function renderTextLine(textStr, startX, startY, lineKey) {
+            const availableWidth = CANVAS_WIDTH - startX - 1;
+            const textWidth = measureTextWidth(textStr);
+
+            let renderOffsetX = 0;
+
+            if (textWidth <= availableWidth) {
+                renderOffsetX = Math.floor((availableWidth - textWidth) / 2);
+                document.getElementById('scroll-status').textContent = "Статус: Центрировано";
+            } else {
+                document.getElementById('scroll-status').textContent = "Статус: Пинг-Понг";
+                
+                if (scrollState[lineKey + 'Pause'] > 0) {
+                    scrollState[lineKey + 'Pause']--;
+                } else {
+                    const maxScroll = -(textWidth - availableWidth);
+                    scrollState[lineKey + 'Offset'] += scrollState[lineKey + 'Dir'] * state.speed;
+
+                    if (scrollState[lineKey + 'Offset'] <= maxScroll) {
+                        scrollState[lineKey + 'Offset'] = maxScroll;
+                        scrollState[lineKey + 'Dir'] = 1;
+                        scrollState[lineKey + 'Pause'] = 40;
+                    } else if (scrollState[lineKey + 'Offset'] >= 0) {
+                        scrollState[lineKey + 'Offset'] = 0;
+                        scrollState[lineKey + 'Dir'] = -1;
+                        scrollState[lineKey + 'Pause'] = 40;
+                    }
+                }
+                renderOffsetX = Math.round(scrollState[lineKey + 'Offset']);
+            }
+
+            let curX = startX + renderOffsetX;
+
+            for (let char of textStr) {
+                const glyph = CYRILLIC_GRID_8[char] || CYRILLIC_GRID_8[' '];
+                for (let col = 0; col < glyph.length; col++) {
+                    const px = curX + col;
+                    if (px >= startX && px < CANVAS_WIDTH) {
+                        for (let row = 0; row < glyph[col].length; row++) {
+                            if (glyph[col][row] === 1) {
+                                setPixel(px, startY + row);
+                            }
+                        }
+                    }
+                }
+                curX += glyph.length + 1;
+            }
+        }
+
+        function drawGridToCanvas() {
+            const palette = LED_PALETTES[state.color] || LED_PALETTES.amber;
+
+            // Fill background with pitch black
+            ctx.fillStyle = '#050608';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const dotRadius = (PIXEL_SCALE / 2) - 0.7;
+
+            // Step 1: Draw unlit dots cleanly with NO blur or glow shadow
+            for (let r = 0; r < CANVAS_HEIGHT; r++) {
+                for (let c = 0; c < CANVAS_WIDTH; c++) {
+                    if (grid[r][c] === 0) {
+                        const cx = c * PIXEL_SCALE + PIXEL_SCALE / 2;
+                        const cy = r * PIXEL_SCALE + PIXEL_SCALE / 2;
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
+                        ctx.fillStyle = palette.dim;
+                        ctx.fill();
+                    }
+                }
+            }
+
+            // Step 2: Draw active lit LEDs WITH ambient glow filter
+            ctx.save();
+            if (state.glow > 0) {
+                ctx.shadowColor = palette.active;
+                ctx.shadowBlur = (state.glow / 100) * 8;
+            }
+
+            for (let r = 0; r < CANVAS_HEIGHT; r++) {
+                for (let c = 0; c < CANVAS_WIDTH; c++) {
+                    if (grid[r][c] === 1) {
+                        const cx = c * PIXEL_SCALE + PIXEL_SCALE / 2;
+                        const cy = r * PIXEL_SCALE + PIXEL_SCALE / 2;
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
+                        ctx.fillStyle = palette.active;
+                        ctx.fill();
+                    }
+                }
+            }
+            ctx.restore();
+
+            // Subtle panel seam lines
+            ctx.strokeStyle = '#0d1017';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += 16 * PIXEL_SCALE) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+        }
+
+        function updateAndRender() {
+            clearGrid();
+
+            const textStartX = renderRouteBlock(state.route);
+
+            if (state.mode === 'dual') {
+                renderTextLine(state.origin, textStartX, 2, 'line1');
+                renderTextLine(state.destination, textStartX, 13, 'line2');
+            } else if (state.mode === 'single_a') {
+                renderTextLine(state.origin, textStartX, 8, 'line1');
+            } else if (state.mode === 'single_b') {
+                renderTextLine(state.destination, textStartX, 8, 'line2');
+            }
+
+            drawGridToCanvas();
+            requestAnimationFrame(updateAndRender);
+        }
+
+        const inpRoute = document.getElementById('inp-route');
+        const inpOrigin = document.getElementById('inp-origin');
+        const inpDest = document.getElementById('inp-destination');
+        const selColor = document.getElementById('sel-color');
+        const selMode = document.getElementById('sel-mode');
+        const rngSpeed = document.getElementById('rng-speed');
+        const rngGlow = document.getElementById('rng-glow');
+
+        function resetPingPongScroll() {
+            scrollState.line1Offset = 0;
+            scrollState.line1Dir = -1;
+            scrollState.line1Pause = 30;
+            scrollState.line2Offset = 0;
+            scrollState.line2Dir = -1;
+            scrollState.line2Pause = 30;
+        }
+
+        inpRoute.addEventListener('input', (e) => { state.route = e.target.value; resetPingPongScroll(); });
+        inpOrigin.addEventListener('input', (e) => { state.origin = e.target.value; resetPingPongScroll(); });
+        inpDest.addEventListener('input', (e) => { state.destination = e.target.value; resetPingPongScroll(); });
+        selColor.addEventListener('change', (e) => state.color = e.target.value);
+        selMode.addEventListener('change', (e) => { state.mode = e.target.value; resetPingPongScroll(); });
+        rngSpeed.addEventListener('input', (e) => state.speed = parseFloat(e.target.value));
+        rngGlow.addEventListener('input', (e) => state.glow = parseInt(e.target.value));
+
+        document.getElementById('btn-export-png').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = `emu_${state.route}_${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+
+        document.getElementById('btn-export-gif').addEventListener('click', () => {
+            const btn = document.getElementById('btn-export-gif');
+            btn.innerText = 'Создание...';
+            btn.disabled = true;
+
+            const frames = [];
+            let captured = 0;
+            const totalFrames = 25;
+
+            const captureInterval = setInterval(() => {
+                frames.push(canvas.toDataURL('image/png'));
+                captured++;
+
+                if (captured >= totalFrames) {
+                    clearInterval(captureInterval);
+                    gifshot.createGIF({
+                        images: frames,
+                        interval: 0.08,
+                        gifWidth: canvas.width,
+                        gifHeight: canvas.height
+                    }, function (obj) {
+                        if (!obj.error) {
+                            const link = document.createElement('a');
+                            link.download = `emu_${state.route}.gif`;
+                            link.href = obj.image;
+                            link.click();
+                        }
+                        btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg><span>GIF</span>`;
+                        btn.disabled = false;
+                    });
+                }
+            }, 80);
+        });
+
+        // Start animation loop
+        requestAnimationFrame(updateAndRender);
+    </script>
+</body>
+</html>
